@@ -6,10 +6,14 @@ MCP server: npx @playwright/mcp@latest --port 8931
 from __future__ import annotations
 import asyncio
 import json
+import sys
 import uuid
 import httpx
 from pathlib import Path
 from config.settings import settings
+
+# Windows'ta npx bir .cmd dosyasıdır; create_subprocess_exec ile bulunamaz.
+_NPX = "npx.cmd" if sys.platform == "win32" else "npx"
 
 
 class PlaywrightMCPClient:
@@ -70,26 +74,46 @@ class LocalPlaywrightRunner:
     """
     MCP server yokken veya lokal ortamda doğrudan 'npx playwright test' çalıştırır.
     Fallback olarak kullanılır.
+    Her zaman PACKAGE_ROOT'tan (playwright.config.ts'in bulunduğu dizin) çalışır.
     """
 
     def __init__(self, project_root: str = "."):
-        self.project_root = Path(project_root)
+        from config.settings import PACKAGE_ROOT
+        # Playwright her zaman playwright.config.ts'in bulunduğu yerden çalışmalı
+        self.project_root = PACKAGE_ROOT
 
     async def run_test_file(self, test_file: str) -> dict:
-        return await self._run(["npx", "playwright", "test", test_file, "--reporter=json"])
+        path = Path(test_file)
+        if not path.is_absolute():
+            path = self.project_root / path
+        # Playwright testDir'e göre relative path ister; absolute path tanımıyor
+        try:
+            rel = path.relative_to(self.project_root).as_posix()
+        except ValueError:
+            rel = path.as_posix()
+        return await self._run([_NPX, "playwright", "test", rel, "--reporter=json"])
 
     async def run_test_suite(self, test_dir: str, grep: str = "") -> dict:
-        cmd = ["npx", "playwright", "test", test_dir, "--reporter=json"]
+        path = Path(test_dir)
+        if not path.is_absolute():
+            path = self.project_root / path
+        try:
+            rel = path.relative_to(self.project_root).as_posix()
+        except ValueError:
+            rel = path.as_posix()
+        cmd = [_NPX, "playwright", "test", rel, "--reporter=json"]
         if grep:
             cmd += ["--grep", grep]
         return await self._run(cmd)
 
     async def _run(self, cmd: list[str]) -> dict:
+        env = {**__import__("os").environ, "BASE_URL": settings.playwright_base_url}
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(self.project_root),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         stdout, stderr = await proc.communicate()
         raw = stdout.decode("utf-8", errors="replace")

@@ -1,5 +1,11 @@
 from pydantic_settings import BaseSettings
 from typing import List
+from pathlib import Path
+
+_ENV_FILE = Path(__file__).parent.parent / ".env"
+
+# pr-test-agent paketinin kök dizini (playwright.config.ts buradadır)
+PACKAGE_ROOT = Path(__file__).parent.parent.resolve()
 
 
 class Settings(BaseSettings):
@@ -32,7 +38,7 @@ class Settings(BaseSettings):
     agent_timeout: int = 300
 
     class Config:
-        env_file = ".env"
+        env_file = str(_ENV_FILE)
         env_file_encoding = "utf-8"
 
 

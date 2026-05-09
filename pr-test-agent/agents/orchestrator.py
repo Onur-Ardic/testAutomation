@@ -124,6 +124,7 @@ async def run_orchestration(
     # ── 3. TEST KODU ÜRETİMİ ─────────────────────────────────────────────────
     await emit("generate", f"Test kodları üretiliyor ({proj_ctx.framework})...")
     try:
+        from config.settings import PACKAGE_ROOT
         generator = build_test_generator_agent(framework=proj_ctx.framework)
         raw = await _agent_respond(
             generator,
@@ -134,7 +135,8 @@ async def run_orchestration(
                 project_context=proj_ctx.summary(),
             ),
         )
-        output_dir = Path(project_root) / settings.test_output_dir
+        # Test dosyaları her zaman PACKAGE_ROOT/tests/generated altına yazılır
+        output_dir = PACKAGE_ROOT / settings.test_output_dir
         result.generated_files = extract_and_write_tests(raw, str(output_dir))
         await emit("generate", f"{len(result.generated_files)} test dosyası oluşturuldu.")
     except Exception as exc:

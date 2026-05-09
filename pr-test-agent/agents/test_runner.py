@@ -87,8 +87,9 @@ def parse_runner_result(response_text: str) -> dict:
 
 def save_report(report: dict, pr_number: int | str, formats: list[str] | None = None) -> dict[str, str]:
     """Raporu HTML ve/veya JSON olarak kaydeder."""
+    from config.settings import PACKAGE_ROOT
     formats = formats or settings.report_formats
-    report_dir = Path(settings.report_dir)
+    report_dir = PACKAGE_ROOT / settings.report_dir
     report_dir.mkdir(exist_ok=True)
     saved: dict[str, str] = {}
 
