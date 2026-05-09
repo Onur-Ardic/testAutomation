@@ -107,7 +107,11 @@ class LocalPlaywrightRunner:
         return await self._run(cmd)
 
     async def _run(self, cmd: list[str]) -> dict:
-        env = {**__import__("os").environ, "BASE_URL": settings.playwright_base_url}
+        env = {
+            **__import__("os").environ,
+            "BASE_URL": settings.playwright_base_url,
+            "PLAYWRIGHT_HEADLESS": "false" if not settings.playwright_headless else "true",
+        }
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(self.project_root),

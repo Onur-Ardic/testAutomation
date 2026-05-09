@@ -16,6 +16,7 @@ class PRFile:
     additions: int
     deletions: int
     patch: str = ""
+    source_content: str = ""  # Dosyanın PR head'indeki tam içeriği
 
 
 @dataclass
@@ -51,12 +52,22 @@ class GitHubClient:
 
         for f in pr.get_files():
             patch = f.patch or ""
+            # .json ve .lock dosyalarının içeriğini alma — gereksiz gürültü
+            source_content = ""
+            if not f.filename.endswith((".json", ".lock", ".md")):
+                try:
+                    content_file = repo.get_contents(f.filename, ref=pr.head.sha)
+                    source_content = content_file.decoded_content.decode("utf-8", errors="replace")
+                except Exception:
+                    pass
+
             files.append(PRFile(
                 filename=f.filename,
                 status=f.status,
                 additions=f.additions,
                 deletions=f.deletions,
                 patch=patch,
+                source_content=source_content,
             ))
             if patch:
                 full_diff_parts.append(f"--- {f.filename}\n{patch}")

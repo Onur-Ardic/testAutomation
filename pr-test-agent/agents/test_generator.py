@@ -20,10 +20,14 @@ Kurallar:
 - test.describe ve test() bloklarını doğru kullan
 - E2E testlerinde page fixture kullan, API testlerinde request fixture
 - Her test bağımsız çalışabilmeli (test isolation)
-- Anlamlı locator'lar kullan (getByRole, getByLabel, getByTestId tercih et)
+- Anlamlı locator'lar kullan (getByRole, getByPlaceholder, getByLabel, getByTestId tercih et)
 - Assertions için expect() kullan
 - Test datalarını test içinde tanımla
 - Proje context'ine göre framework'e özgü selector ve pattern kullan
+- Uygulamada login ekranı varsa test.beforeEach içinde mutlaka login yap
+- Kaynak kodda gördüğün GERÇEK placeholder ve buton metinlerini kullan
+- Sibling elementleri bulmak için .locator('.parent').filter({hasText:...}).locator('.sibling') pattern'ini kullan
+- ASLA getByText(...).locator('.sibling') yapma — sibling'i bulmak için container'ı kullan
 
 SADECE kod üret, açıklama ekleme. Her dosyayı şu formatta ver:
 
@@ -126,8 +130,22 @@ def build_test_generator_agent(framework: str = "unknown") -> AssistantAgent:
     )
 
 
-def build_generator_message(test_plan: dict, base_url: str, pr_title: str, project_context: str = "") -> str:
+def build_generator_message(
+    test_plan: dict,
+    base_url: str,
+    pr_title: str,
+    project_context: str = "",
+    source_files: list[dict] | None = None,
+) -> str:
     ctx_section = f"\n## Proje Context\n{project_context}" if project_context else ""
+
+    source_section = ""
+    if source_files:
+        parts = []
+        for sf in source_files:
+            parts.append(f"### {sf['filename']}\n```\n{sf['content'][:4000]}\n```")
+        source_section = "\n## Uygulamanın Kaynak Kodu (PR head'inden)\n" + "\n\n".join(parts)
+
     return f"""
 ## Test Planı
 ```json
@@ -136,8 +154,10 @@ def build_generator_message(test_plan: dict, base_url: str, pr_title: str, proje
 
 ## Proje Bilgileri
 - Base URL: {base_url}
-- PR: {pr_title}{ctx_section}
+- PR: {pr_title}{ctx_section}{source_section}
 
+ÖNEMLİ: Kaynak kodda gördüğün GERÇEK placeholder, buton metinleri ve selector'ları kullan.
+Uygulamada login ekranı varsa testlerin başında mutlaka doğru credentials ile login ol.
 Yukarıdaki test planındaki tüm senaryolar için Playwright TypeScript test kodu üret.
 Her senaryo için ayrı test() bloğu oluştur.
 """.strip()

@@ -126,6 +126,14 @@ async def run_orchestration(
     try:
         from config.settings import PACKAGE_ROOT
         generator = build_test_generator_agent(framework=proj_ctx.framework)
+
+        # PR'daki kaynak dosyaların içeriğini topla
+        source_files = [
+            {"filename": f.filename, "content": f.source_content}
+            for f in pr.files
+            if f.source_content
+        ]
+
         raw = await _agent_respond(
             generator,
             build_generator_message(
@@ -133,6 +141,7 @@ async def run_orchestration(
                 settings.playwright_base_url,
                 pr.title,
                 project_context=proj_ctx.summary(),
+                source_files=source_files,
             ),
         )
         # Test dosyaları her zaman PACKAGE_ROOT/tests/generated altına yazılır

@@ -16,6 +16,7 @@ export default defineConfig({
 
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -30,7 +31,6 @@ export default defineConfig({
       name: 'api',
       testMatch: '**/api/**/*.spec.ts',
       use: {
-        // API testleri için browser gerekmez
         ...devices['Desktop Chrome'],
         baseURL: process.env.API_BASE_URL || 'http://localhost:3000',
       },
