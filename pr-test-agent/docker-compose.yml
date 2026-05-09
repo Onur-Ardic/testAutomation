@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  # Playwright MCP server
+  playwright-mcp:
+    image: mcr.microsoft.com/playwright:v1.44.0-jammy
+    command: ["npx", "@playwright/mcp@latest", "--port", "8931", "--host", "0.0.0.0"]
+    ports:
+      - "8931:8931"
+    environment:
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8931/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # FastAPI + Agent backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - PLAYWRIGHT_MCP_HOST=playwright-mcp
+      - PLAYWRIGHT_MCP_PORT=8931
+      - PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://localhost:3000}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    volumes:
+      - ./tests/generated:/app/tests/generated
+      - ./reports:/app/reports
+    depends_on:
+      playwright-mcp:
+        condition: service_healthy
+    command: ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+volumes:
+  reports:
+  tests_generated:

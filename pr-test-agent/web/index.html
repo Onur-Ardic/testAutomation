@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PR Test Automation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
+
+  <!-- Header -->
+  <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center gap-3">
+    <span class="text-2xl">🎭</span>
+    <div>
+      <h1 class="text-xl font-bold">PR Test Automation</h1>
+      <p class="text-xs text-slate-400">AutoGen + Playwright MCP</p>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto p-6 space-y-6">
+
+    <!-- Input Form -->
+    <section class="bg-slate-800 rounded-xl p-6 space-y-4 border border-slate-700">
+      <h2 class="text-lg font-semibold">📋 PR Bilgileri</h2>
+
+      <div class="space-y-1">
+        <label class="text-sm text-slate-300">GitHub PR URL'si</label>
+        <input id="prUrl" type="url" placeholder="https://github.com/org/repo/pull/42"
+          class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+      </div>
+
+      <div class="text-center text-slate-500 text-sm">— veya —</div>
+
+      <div class="space-y-1">
+        <label class="text-sm text-slate-300">Manuel Diff İçeriği</label>
+        <textarea id="diffContent" rows="6" placeholder="Diff içeriğini buraya yapıştırın..."
+          class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono resize-none"></textarea>
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-sm text-slate-300">Base URL (opsiyonel)</label>
+        <input id="baseUrl" type="url" placeholder="http://localhost:3000"
+          class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+      </div>
+
+      <!-- Test Type Checkboxes -->
+      <div class="space-y-2">
+        <label class="text-sm text-slate-300">Test Türleri</label>
+        <div class="flex gap-4">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="chk-e2e" checked class="accent-blue-500" /> E2E
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="chk-api" checked class="accent-blue-500" /> API
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="chk-unit" checked class="accent-blue-500" /> Unit
+          </label>
+        </div>
+      </div>
+
+      <button id="runBtn" onclick="startRun()"
+        class="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2">
+        <span>🚀 Analyze & Run Tests</span>
+      </button>
+    </section>
+
+    <!-- Progress -->
+    <section id="progressSection" class="hidden bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-3">
+      <h2 class="text-lg font-semibold">⚡ İlerleme</h2>
+      <div id="progressLog" class="space-y-1 font-mono text-sm max-h-64 overflow-y-auto"></div>
+    </section>
+
+    <!-- Results -->
+    <section id="resultsSection" class="hidden bg-slate-800 rounded-xl p-6 border border-slate-700 space-y-4">
+      <h2 class="text-lg font-semibold">📊 Sonuçlar</h2>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3" id="statsGrid"></div>
+
+      <!-- Merge Badge -->
+      <div id="mergeBadge" class="text-center text-lg font-bold py-3 rounded-lg"></div>
+
+      <!-- Assessment -->
+      <div id="assessment" class="text-slate-300 text-sm bg-slate-700/50 rounded-lg p-4"></div>
+
+      <!-- Failed Tests -->
+      <div id="failedSection" class="hidden">
+        <h3 class="font-semibold text-red-400 mb-2">❌ Başarısız Testler</h3>
+        <div id="failedList" class="space-y-2 text-sm"></div>
+      </div>
+
+      <!-- Recommendations -->
+      <div id="recsSection" class="hidden">
+        <h3 class="font-semibold text-yellow-400 mb-2">💡 Öneriler</h3>
+        <ul id="recsList" class="list-disc list-inside text-sm space-y-1 text-slate-300"></ul>
+      </div>
+
+      <!-- Report Links -->
+      <div id="reportLinks" class="flex gap-3 flex-wrap"></div>
+    </section>
+
+  </main>
+
+  <script>
+    let currentRunId = null;
+    let ws = null;
+
+    const stageEmoji = { analyze:'🔍', plan:'📋', generate:'⚙️', run:'▶️', report:'📄', error:'❌', done:'✅' };
+
+    function log(stage, message) {
+      const el = document.getElementById('progressLog');
+      const line = document.createElement('div');
+      const emoji = stageEmoji[stage] || '•';
+      line.innerHTML = `<span class="text-slate-500">[${stage.toUpperCase()}]</span> ${emoji} ${message}`;
+      el.appendChild(line);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    async function startRun() {
+      const prUrl = document.getElementById('prUrl').value.trim();
+      const diffContent = document.getElementById('diffContent').value.trim();
+      const baseUrl = document.getElementById('baseUrl').value.trim();
+
+      if (!prUrl && !diffContent) {
+        alert('PR URL veya diff içeriği giriniz.');
+        return;
+      }
+
+      const types = [];
+      if (document.getElementById('chk-e2e').checked) types.push('e2e');
+      if (document.getElementById('chk-api').checked) types.push('api');
+      if (document.getElementById('chk-unit').checked) types.push('unit');
+
+      // Reset UI
+      document.getElementById('progressSection').classList.remove('hidden');
+      document.getElementById('resultsSection').classList.add('hidden');
+      document.getElementById('progressLog').innerHTML = '';
+      document.getElementById('runBtn').disabled = true;
+      document.getElementById('runBtn').innerHTML = '<span class="animate-spin">⏳</span> Çalışıyor...';
+
+      // Start run
+      const body = { test_types: types };
+      if (prUrl) body.pr_url = prUrl;
+      if (diffContent) body.diff_content = diffContent;
+      if (baseUrl) body.base_url = baseUrl;
+
+      const resp = await fetch('/api/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+      currentRunId = data.run_id;
+
+      log('info', `Çalışma başlatıldı: ${currentRunId}`);
+
+      // WebSocket progress
+      ws = new WebSocket(`ws://${location.host}/ws/runs/${currentRunId}`);
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.stage === 'done') {
+          fetchAndShowResult();
+        } else {
+          log(msg.stage, msg.message);
+        }
+      };
+      ws.onerror = () => {
+        // Fallback: poll
+        const poll = setInterval(async () => {
+          const r = await fetch(`/api/runs/${currentRunId}`);
+          const d = await r.json();
+          if (d.status === 'completed' || d.status === 'failed') {
+            clearInterval(poll);
+            fetchAndShowResult();
+          }
+        }, 2000);
+      };
+    }
+
+    async function fetchAndShowResult() {
+      const r = await fetch(`/api/runs/${currentRunId}`);
+      const data = await r.json();
+      showResults(data);
+      document.getElementById('runBtn').disabled = false;
+      document.getElementById('runBtn').innerHTML = '🚀 Analyze & Run Tests';
+    }
+
+    function stat(label, value, color) {
+      return `<div class="bg-slate-700 rounded-lg p-3 text-center">
+        <div class="text-2xl font-bold ${color}">${value}</div>
+        <div class="text-xs text-slate-400 mt-1">${label}</div>
+      </div>`;
+    }
+
+    function showResults(data) {
+      document.getElementById('resultsSection').classList.remove('hidden');
+      const report = data.report || {};
+
+      // Stats
+      const statusColor = { passed:'text-green-400', failed:'text-red-400', partial:'text-yellow-400' };
+      const sg = document.getElementById('statsGrid');
+      sg.innerHTML = stat('Toplam', report.total_tests || 0, 'text-white')
+        + stat('✅ Geçti', report.passed || 0, 'text-green-400')
+        + stat('❌ Başarısız', report.failed || 0, 'text-red-400')
+        + stat('Atlandı', report.skipped || 0, 'text-slate-400')
+        + stat('Süre', `${report.duration_ms || 0}ms`, 'text-blue-400');
+
+      // Merge badge
+      const mb = document.getElementById('mergeBadge');
+      if (report.pr_safe_to_merge) {
+        mb.className = 'text-center text-lg font-bold py-3 rounded-lg bg-green-900/40 text-green-400';
+        mb.textContent = '✅ PR MERGE EDİLEBİLİR';
+      } else {
+        mb.className = 'text-center text-lg font-bold py-3 rounded-lg bg-red-900/40 text-red-400';
+        mb.textContent = '❌ PR MERGE EDİLEMEZ — Testler başarısız';
+      }
+
+      // Assessment
+      document.getElementById('assessment').textContent = report.coverage_assessment || '';
+
+      // Failed tests
+      const failed = report.failed_tests || [];
+      if (failed.length) {
+        document.getElementById('failedSection').classList.remove('hidden');
+        document.getElementById('failedList').innerHTML = failed.map(t => `
+          <div class="bg-slate-700 rounded-lg p-3 border-l-4 border-red-500">
+            <div class="font-semibold">${t.test_name}</div>
+            <div class="text-red-400 text-xs mt-1">${t.error}</div>
+            <div class="text-blue-300 text-xs mt-1">💡 ${t.suggestion}</div>
+          </div>`).join('');
+      }
+
+      // Recommendations
+      const recs = report.recommendations || [];
+      if (recs.length) {
+        document.getElementById('recsSection').classList.remove('hidden');
+        document.getElementById('recsList').innerHTML = recs.map(r => `<li>${r}</li>`).join('');
+      }
+
+      // Report links
+      const rl = document.getElementById('reportLinks');
+      rl.innerHTML = Object.entries(data.saved_reports || {}).map(([fmt, path]) =>
+        `<a href="/api/runs/${currentRunId}/report?fmt=${fmt}" target="_blank"
+           class="bg-slate-700 hover:bg-slate-600 text-sm px-4 py-2 rounded-lg transition">
+          📄 ${fmt.toUpperCase()} Raporu İndir
+        </a>`).join('');
+    }
+  </script>
+</body>
+</html>

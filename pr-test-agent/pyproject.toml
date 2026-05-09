@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pr-test-agent"
+version = "1.0.0"
+description = "PR Test Automation — AutoGen + Playwright MCP"
+requires-python = ">=3.11"
+dependencies = [
+    "autogen-agentchat>=0.4.0",
+    "autogen-ext[openai]>=0.4.0",
+    "openai>=1.30.0",
+    "PyGithub>=2.3.0",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "websockets>=12.0",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "pydantic-settings>=2.2.0",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+# Global CLI komutu: her dizinden `pr-test run --pr-url ...` çalışır
+pr-test = "cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agents*", "mcp*", "integrations*", "api*", "cli*", "config*"]
+
+[tool.setuptools.package-data]
+"*" = ["web/*", "*.html", "*.css", "*.js"]

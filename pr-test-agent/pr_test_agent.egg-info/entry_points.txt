@@ -1,0 +1,2 @@
+[console_scripts]
+pr-test = cli.main:app

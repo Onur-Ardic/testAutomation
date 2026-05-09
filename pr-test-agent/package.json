@@ -1,0 +1,18 @@
+{
+  "name": "pr-test-agent",
+  "version": "1.0.0",
+  "description": "PR Test Automation — AutoGen + Playwright MCP",
+  "scripts": {
+    "test": "playwright test",
+    "test:e2e": "playwright test tests/generated/e2e/",
+    "test:api": "playwright test tests/generated/api/",
+    "test:unit": "playwright test tests/generated/unit/",
+    "test:report": "playwright show-report",
+    "mcp:start": "npx @playwright/mcp@latest --port 8931"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,3 @@
+# tests/generated — AI tarafından üretilen Playwright testleri buraya yazılır
+# Bu klasörün içeriğini commit etmeniz gerekmez.
+*.spec.ts linguist-generated=true

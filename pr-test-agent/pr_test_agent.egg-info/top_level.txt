@@ -1,0 +1,6 @@
+agents
+api
+cli
+config
+integrations
+mcp
